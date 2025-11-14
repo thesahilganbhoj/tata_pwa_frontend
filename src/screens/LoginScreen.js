@@ -116,7 +116,7 @@ export default function LoginScreen({ onLogin }) {
   return (
     <div style={styles.container}>
       <img src="/Logo/TTL.png" alt="Tata Technologies Logo" style={styles.logo} />
-      <h2 style={styles.heading}>{isLogin ? "Login" : "Sign Up"}</h2>
+      <h2 style={styles.heading}>{isLogin ? "Login me" : "Sign Up"}</h2>
 
       {error && <div style={styles.error}>{error}</div>}
 
