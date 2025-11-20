@@ -1,529 +1,337 @@
-import { useState, useEffect } from "react";
-import { API_URL } from "../config";
+import React, { useEffect, useState, useRef } from "react"
+import { API_URL } from "../config"
 
-export default function ProfileScreen({ employee, onBack }) {
-  const allSkills = [
-    "JavaScript",
-    "Python",
-    "Java",
-    "C#",
-    "C++",
-    "Go",
-    "Ruby",
-    "TypeScript",
-    "React",
-    "Angular",
-    "Vue.js",
-    "Node.js",
-    "Express.js",
-    "Django",
-    "Flask",
-    "SQL",
-    "NoSQL",
-    "MongoDB",
-    "PostgreSQL",
-    "MySQL",
-    "GraphQL",
-    "REST APIs",
-    "AWS",
-    "Azure",
-    "Google Cloud",
-    "Docker",
-    "Kubernetes",
-    "CI/CD",
-    "Git",
-    "HTML",
-    "CSS",
-    "SASS",
-    "Bootstrap",
-    "Material-UI",
-    "Figma",
-    "UI/UX Design",
-    "Machine Learning",
-    "Deep Learning",
-    "AI",
-    "Data Science",
-    "Power BI",
-    "Tableau",
-    "Project Management",
-    "Agile",
-    "Scrum",
-    "Testing",
-    "Selenium",
-    "Aerospace",
-    "Embedded Systems",
-    "IoT",
-    "Cybersecurity",
-    "Blockchain",
-    "DevOps",
-    "Salesforce",
-    "ERP",
-    "Leadership",
-    "Communication",
-    "Problem Solving",
-  ];
+/**
+ * ProfileScreen (Updated)
+ * - Edits only: name, empid, email, role, otherRole, cluster, location
+ * - Updates ONLY these fields in DB using original employee id (originalIdRef)
+ * - Will not overwrite detail fields (DetailScreen owns those)
+ */
 
-  const availabilityOptions = [
-    "Available",
-    "Unavailable",
-    "Partially Available",
-  ];
-  const hoursOptions = [1, 2, 4, 6, 8];
+export default function ProfileScreen({ employee = null, onBack, onSaveProfile }) {
+  const ROLE = [
+    { label: "Software Developer", value: "Software Developer" },
+    { label: "Engagement Manager", value: "Engagement Manager" },
+    { label: "Tech Lead", value: "Tech Lead" },
+    { label: "Data Analyst", value: "Data Analyst" },
+    { label: "Consulting - PLM", value: "Consulting - PLM" },
+    { label: "Consulting - Manufacturing", value: "Consulting - Manufacturing" },
+    { label: "Consulting - Aerospace", value: "Consulting - Aerospace" },
+    { label: "Head of Bluebird", value: "Head of Bluebird" },
+    { label: "Aerospace role", value: "Aerospace role" },
+    { label: "Presentation role", value: "Presentation role" },
+    { label: "Other", value: "Other" },
+  ]
 
-  const [empid, setEmpid] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("");
-  const [location, setLocation] = useState("");
-  const [availability, setAvailability] = useState("Unavailable");
-  const [hours, setHours] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [interests, setInterests] = useState("");
-  const [projects, setProjects] = useState("");
-  const [skills, setSkills] = useState([]);
-  const [skillInput, setSkillInput] = useState("");
-  const [filteredSkills, setFilteredSkills] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const CLUSTER = [
+    { label: "MEBM", value: "MEBM" },
+    { label: "M&T", value: "M&T" },
+    { label: "PLM", value: "PLM" },
+  ]
 
+  const [empid, setEmpid] = useState("")
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [role, setRole] = useState("")
+  const [otherRole, setOtherRole] = useState("")
+  const [cluster, setCluster] = useState("")
+  const [location, setLocation] = useState("")
+
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [touched, setTouched] = useState({})
+
+  const originalIdRef = useRef(null)
+
+  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth <= 900 : false)
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (!employee || !employee.empid) return;
+    const onResize = () => setIsMobile(window.innerWidth <= 900)
+    onResize()
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [])
 
+  // Initialize from prop
+  useEffect(() => {
+    if (!employee) return
+    const original = employee.empid || employee.id || ""
+    originalIdRef.current = original
+
+    setEmpid(original)
+    setName(employee.name || "")
+    setEmail(employee.email || "")
+    setRole(employee.role || "")
+    setOtherRole(employee.otherRole || employee.other_role || "")
+    setCluster(employee.cluster || "")
+    setLocation(employee.location || "")
+  }, [employee])
+
+  // Non-destructive background refresh (only fill empty local fields)
+  useEffect(() => {
+    const id = originalIdRef.current
+    if (!id) return
+    const url = `${API_URL.replace(/\/$/, "")}/api/employees/${encodeURIComponent(id)}`
+    ;(async () => {
       try {
-        const response = await fetch(
-          `${API_URL}/api/employees/${employee.empid}`
-        );
-        if (!response.ok) throw new Error("Failed to fetch profile");
+        const res = await fetch(url, { headers: { "Content-Type": "application/json" } })
+        if (!res.ok) return
+        const data = await res.json()
+        const obj = Array.isArray(data) ? data[0] : data
+        if (!obj) return
 
-        const data = await response.json();
-        console.log("[v0] Full profile fetched:", data);
-
-        const formatDate = (dateStr) => {
-          if (!dateStr) return "";
-          return dateStr.split("T")[0]; // Extract YYYY-MM-DD from '2025-12-09T18:30:00.000Z'
-        };
-
-        setEmpid(data.empid || "");
-        setName(data.name || "");
-        setEmail(data.email || "");
-        setRole(data.role || "");
-        setLocation(data.location || "");
-        setAvailability(data.availability || "Unavailable");
-        setHours(data.hours_available || "");
-        setFromDate(formatDate(data.from_date));
-        setToDate(formatDate(data.to_date));
-
-        setInterests(
-          Array.isArray(data.interests) ? data.interests.join(", ") : ""
-        );
-        setProjects(
-          Array.isArray(data.previous_projects)
-            ? data.previous_projects.join("\n")
-            : ""
-        );
-        setSkills(
-          Array.isArray(data.current_skills) ? data.current_skills : []
-        );
-      } catch (err) {
-        console.error("Profile fetch error:", err);
-        setError("Unable to load profile. Please try again.");
+        setName((cur) => (cur ? cur : obj.name || ""))
+        setEmail((cur) => (cur ? cur : obj.email || ""))
+        setRole((cur) => (cur ? cur : obj.role || ""))
+        setOtherRole((cur) => (cur ? cur : obj.otherRole || obj.other_role || ""))
+        setCluster((cur) => (cur ? cur : obj.cluster || ""))
+        setLocation((cur) => (cur ? cur : obj.location || ""))
+      } catch (e) {
+        console.warn("Profile refresh failed:", e)
       }
-    };
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee])
 
-    fetchProfile();
-  }, [employee]);
+  // Validation
+  const validateEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+  const errors = {
+    name: !name.trim() ? "Name is required" : "",
+    empid: !empid.toString().trim() ? "Employee Id required" : "",
+    email: !validateEmail(email) ? "Valid email required" : "",
+    role: !role ? "Role required" : "",
+    otherRole: role === "Other" && !otherRole.trim() ? "Enter role" : "",
+    cluster: !cluster ? "Cluster required" : "",
+  }
+  const onBlurField = (k) => setTouched((t) => ({ ...t, [k]: true }))
+  const isValid = () => !Object.values(errors).some(Boolean)
 
-  const addSkill = (skill) => {
-    if (!skills.includes(skill)) {
-      setSkills([...skills, skill]);
+  // Read response utility
+  const readResponse = async (res) => {
+    const ct = res.headers.get("content-type") || ""
+    try {
+      if (ct.includes("application/json")) return await res.json()
+      return await res.text()
+    } catch {
+      return "<unreadable response>"
     }
-    setSkillInput("");
-    setFilteredSkills([]);
-  };
+  }
 
-  const removeSkill = (skill) => {
-    setSkills(skills.filter((s) => s !== skill));
-  };
-
-  const handleSkillInputChange = (e) => {
-    const value = e.target.value;
-    setSkillInput(value);
-    if (value.length > 0) {
-      const filtered = allSkills.filter(
-        (s) =>
-          s.toLowerCase().includes(value.toLowerCase()) && !skills.includes(s)
-      );
-      setFilteredSkills(filtered);
-    } else {
-      setFilteredSkills([]);
+  const fetchServerRecord = async (id) => {
+    const base = API_URL.replace(/\/$/, "")
+    const url = `${base}/api/employees/${encodeURIComponent(id)}`
+    try {
+      const r = await fetch(url, { headers: { "Content-Type": "application/json" } })
+      if (r.ok) {
+        const d = await r.json()
+        return Array.isArray(d) ? d[0] : d
+      }
+    } catch (e) {
+      // ignore and fallback
     }
-  };
+
+    // fallback to fetch all and find
+    try {
+      const list = await fetch(`${base}/api/employees`, { headers: { "Content-Type": "application/json" } })
+      if (!list.ok) return null
+      const arr = await list.json()
+      if (!Array.isArray(arr)) return null
+      return arr.find((x) => ((x.empid || x.id) + "") === (id + "")) || null
+    } catch (e) {
+      return null
+    }
+  }
 
   const handleSave = async () => {
-    setError("");
+    setTouched({ name: true, empid: true, email: true, role: true, otherRole: true, cluster: true })
+    setError("")
 
-    if (
-      availability === "Partially Available" &&
-      (!hours || !fromDate || !toDate)
-    ) {
-      setError(
-        "Hours, From Date, and To Date are required for Partially Available"
-      );
-      return;
-    }
+    if (!isValid()) return setError("Fix errors before saving.")
 
-    setLoading(true);
+    const originalId = originalIdRef.current
+    if (!originalId) return setError("Missing original employee ID.")
+
+    setSaving(true)
+
     try {
-      const projectsArray = projects.split("\n").filter((p) => p.trim());
-      const interestsArray = interests
-        .split(",")
-        .map((i) => i.trim())
-        .filter((i) => i.length > 0);
-
-      const response = await fetch(
-        `${API_URL}/api/employees/${employee.empid}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            availability,
-            hours_available:
-              availability === "Partially Available"
-                ? Number.parseInt(hours)
-                : null,
-            from_date: availability === "Partially Available" ? fromDate : null,
-            to_date: availability === "Partially Available" ? toDate : null,
-            current_skills: skills,
-            interests: interestsArray,
-            previous_projects: projectsArray,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Update failed");
+      const payload = {
+        name: name.trim(),
+        empid: empid.toString().trim(),
+        email: email.trim(),
+        role: role === "Other" ? otherRole.trim() : role,
+        otherRole: role === "Other" ? otherRole.trim() : "",
+        cluster,
+        location: location.trim(),
       }
 
-      alert("Profile saved successfully!");
-      onBack();
+      const base = API_URL.replace(/\/$/, "")
+      const target = `${base}/api/employees/${encodeURIComponent(originalId)}`
+
+      console.log("[ProfileScreen] payload ->", payload, "target ->", target)
+
+      // Try PUT
+      let res = await fetch(target, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      let body = await readResponse(res)
+      console.log("[ProfileScreen] PUT", res.status, body)
+
+      // PATCH fallback
+      if (!res.ok) {
+        console.warn("[ProfileScreen] PUT failed; trying PATCH")
+        res = await fetch(target, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        body = await readResponse(res)
+        console.log("[ProfileScreen] PATCH", res.status, body)
+      }
+
+      // POST fallback to collection
+      if (!res.ok) {
+        console.warn("[ProfileScreen] PATCH failed; trying POST to collection endpoint")
+        const postRes = await fetch(`${base}/api/employees`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ empid: payload.empid, ...payload }),
+        })
+        const postBody = await readResponse(postRes)
+        console.log("[ProfileScreen] POST", postRes.status, postBody)
+        if (!postRes.ok) throw new Error(`All update attempts failed. Last status: ${postRes.status}`)
+      }
+
+      // Confirm by fetching server record (prefer new empid then original)
+      let serverRecord = await fetchServerRecord(payload.empid)
+      if (!serverRecord) serverRecord = await fetchServerRecord(originalId)
+      if (!serverRecord) throw new Error("Could not fetch record after save — check backend.")
+
+      // Build profile-only object using serverRecord fields (non-destructive)
+      const profileKeys = ["empid", "name", "email", "role", "otherRole", "cluster", "location"]
+      const profileOnly = {}
+      for (const k of profileKeys) {
+        profileOnly[k] =
+          serverRecord[k] ?? serverRecord[k.replace(/[A-Z]/g, (m) => "_" + m.toLowerCase())] ?? ""
+      }
+
+      // Merge into sessionStorage safely (only profile keys)
+      try {
+        const existing = JSON.parse(sessionStorage.getItem("user") || "{}")
+        sessionStorage.setItem("user", JSON.stringify({ ...existing, ...profileOnly }))
+      } catch (e) {
+        console.warn("sessionStorage merge failed:", e)
+      }
+
+      onSaveProfile && onSaveProfile(profileOnly)
+      alert("Profile updated and confirmed on server.")
     } catch (err) {
-      setError(err.message);
-      console.error("Save error:", err);
+      console.error("[ProfileScreen] Save error:", err)
+      setError(err.message || "Save failed — check console/network")
+      alert(`Save failed: ${err.message}. See console/network tab.`)
     } finally {
-      setLoading(false);
+      setSaving(false)
     }
-  };
+  }
 
   const styles = {
     container: {
-      maxWidth: "700px",
-      margin: "20px auto",
-      fontFamily: "Segoe UI, Tahoma, sans-serif",
-      padding: "20px",
+      maxWidth: 920,
+      margin: "18px auto",
+      padding: isMobile ? 14 : 20,
+      fontFamily: "Segoe UI, Tahoma",
       background: "#fff",
-      borderRadius: "12px",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-      color: "#333",
+      borderRadius: 12,
+      boxShadow: "0 8px 30px rgba(0,0,0,0.07)",
     },
-    header: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: "20px",
-    },
-    title: { margin: 0, fontSize: "24px", color: "#0072bc", fontWeight: "600" },
-    backButton: {
-      cursor: "pointer",
-      padding: "8px 16px",
-      background: "#0072bc",
-      color: "white",
-      border: "none",
-      borderRadius: "6px",
-      fontWeight: "bold",
-    },
-    label: {
-      display: "block",
-      margin: "15px 0 6px",
-      fontWeight: "600",
-      fontSize: "14px",
-      color: "#333",
-    },
-    input: {
-      width: "100%",
-      padding: "10px",
-      borderRadius: "6px",
-      border: "1px solid #ddd",
-      fontSize: "14px",
-      boxSizing: "border-box",
-      fontFamily: "inherit",
-    },
-    select: {
-      width: "100%",
-      padding: "10px",
-      borderRadius: "6px",
-      border: "1px solid #ddd",
-      fontSize: "14px",
-      boxSizing: "border-box",
-      fontFamily: "inherit",
-    },
-    textarea: {
-      width: "100%",
-      padding: "10px",
-      borderRadius: "6px",
-      border: "1px solid #ddd",
-      minHeight: "80px",
-      fontSize: "14px",
-      resize: "vertical",
-      boxSizing: "border-box",
-      fontFamily: "inherit",
-    },
-    saveButton: {
-      marginTop: "20px",
-      padding: "12px",
-      width: "100%",
-      background: "#0072bc",
-      color: "white",
-      border: "none",
-      borderRadius: "6px",
-      fontSize: "16px",
-      fontWeight: "600",
-      cursor: "pointer",
-      opacity: loading ? 0.7 : 1,
-    },
-    skillsDropdownContainer: { position: "relative", marginBottom: "10px" },
-    filteredList: {
-      position: "absolute",
-      top: "100%",
-      left: 0,
-      right: 0,
-      background: "white",
-      border: "1px solid #ddd",
-      maxHeight: "150px",
-      overflowY: "auto",
-      borderRadius: "6px",
-      zIndex: 10,
-    },
-    skillItem: {
-      padding: "8px 12px",
-      cursor: "pointer",
-      borderBottom: "1px solid #eee",
-    },
-    skillTagContainer: {
-      display: "flex",
-      flexWrap: "wrap",
-      gap: "8px",
-      marginTop: "8px",
-    },
-    skillTag: {
-      background: "#4caf50",
-      color: "white",
-      padding: "6px 12px",
-      borderRadius: "20px",
-      fontSize: "13px",
-      display: "flex",
-      alignItems: "center",
-      gap: "6px",
-    },
-    error: {
-      color: "#d32f2f",
-      marginBottom: "15px",
-      padding: "10px",
-      background: "#ffebee",
-      borderRadius: "6px",
-      fontSize: "14px",
-    },
-    conditionalInfo: {
-      background: "#e3f2fd",
-      padding: "10px",
-      borderRadius: "6px",
-      marginBottom: "15px",
-      fontSize: "13px",
-      color: "#0072bc",
-    },
-  };
+    headerRow: { display: "flex", gap: 16, alignItems: "center", marginBottom: 14 },
+    backBtn: { padding: "8px 12px", borderRadius: 8, border: "1px solid #ccc", cursor: "pointer" },
+    formRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 },
+    field: { display: "flex", flexDirection: "column" },
+    label: { fontSize: 13, marginBottom: 4 },
+    input: { padding: 10, borderRadius: 8, border: "1px solid #ddd" },
+    select: { padding: 10, borderRadius: 8, border: "1px solid #ddd" },
+    errorBox: { background: "#fee", padding: 10, borderRadius: 8, color: "#b00" },
+    actions: { display: "flex", justifyContent: "flex-end", marginTop: 18 },
+    saveBtn: { padding: "10px 16px", borderRadius: 10, background: "#0072bc", color: "#fff", border: "none", cursor: "pointer" },
+  }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>Profile</h2>
-        <button style={styles.backButton} onClick={onBack}>
-          Back
-        </button>
+    <div style={styles.container} role="region" aria-label="Profile screen">
+      <div style={styles.headerRow}>
+        <button style={styles.backBtn} onClick={() => onBack && onBack()}>← Back</button>
+        <div style={{ fontSize: 22, fontWeight: "bold" }}>Profile</div>
       </div>
 
-      {error && <div style={styles.error}>{error}</div>}
+      {error && <div style={styles.errorBox}>{error}</div>}
 
-      <label style={styles.label}>Employee ID</label>
-      <input style={styles.input} type="text" value={empid} disabled />
+      <div style={styles.formRow}>
+        <div style={styles.field}>
+          <label style={styles.label}>Full Name</label>
+          <input
+            style={styles.input}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => onBlurField("name")}
+          />
+        </div>
 
-      <label style={styles.label}>Name</label>
-      <input style={styles.input} type="text" value={name} disabled />
+        <div style={styles.field}>
+          <label style={styles.label}>Employee ID</label>
+          <input
+            style={styles.input}
+            value={empid}
+            onChange={(e) => setEmpid(e.target.value)}
+            onBlur={() => onBlurField("empid")}
+          />
+        </div>
 
-      <label style={styles.label}>Email</label>
-      <input style={styles.input} type="email" value={email} disabled />
+        <div style={styles.field}>
+          <label style={styles.label}>Email</label>
+          <input
+            style={styles.input}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => onBlurField("email")}
+          />
+        </div>
 
-      <label style={styles.label}>Role</label>
-      <input style={styles.input} type="text" value={role} disabled />
-
-      <label style={styles.label}>Location</label>
-      <input style={styles.input} type="text" value={location} disabled />
-
-      <label style={styles.label}>Availability</label>
-      <select
-        style={styles.select}
-        value={availability}
-        onChange={(e) => setAvailability(e.target.value)}
-        disabled={loading}
-      >
-        {availabilityOptions.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
-
-      {availability === "Partially Available" && (
-        <>
-          <div style={styles.conditionalInfo}>
-            These fields are for Partially Available status only
-          </div>
-
-          <label style={styles.label}>Hours Available</label>
-          <select
-            style={styles.select}
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-            disabled={loading}
-          >
-            <option value="">Select hours</option>
-            {hoursOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt} hours
-              </option>
+        <div style={styles.field}>
+          <label style={styles.label}>Role</label>
+          <select style={styles.select} value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="">Select role</option>
+            {ROLE.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
+        </div>
 
-          <label style={styles.label}>From Date</label>
-          <input
-            style={styles.input}
-            type="date"
-            value={fromDate}
-            onChange={(e) => {
-              const selectedDate = new Date(e.target.value);
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-
-              if (
-                selectedDate >= today &&
-                selectedDate.getDay() !== 0 &&
-                selectedDate.getDay() !== 6
-              ) {
-                setFromDate(e.target.value);
-                // Reset toDate if it's now invalid
-                const toDateObj = new Date(toDate);
-                if (
-                  toDateObj < selectedDate ||
-                  toDateObj >
-                    new Date(
-                      selectedDate.getFullYear() + 1,
-                      selectedDate.getMonth(),
-                      selectedDate.getDate()
-                    ) ||
-                  toDateObj.getDay() === 0 ||
-                  toDateObj.getDay() === 6
-                ) {
-                  setToDate("");
-                }
-              }
-            }}
-            disabled={loading}
-          />
-
-          <label style={styles.label}>To Date</label>
-          <input
-            style={styles.input}
-            type="date"
-            value={toDate}
-            onChange={(e) => {
-              const selectedDate = new Date(e.target.value);
-              const fromDateObj = new Date(fromDate);
-              const maxDate = new Date(fromDateObj);
-              maxDate.setFullYear(maxDate.getFullYear() + 1);
-
-              if (
-                selectedDate >= fromDateObj &&
-                selectedDate <= maxDate &&
-                selectedDate.getDay() !== 0 &&
-                selectedDate.getDay() !== 6
-              ) {
-                setToDate(e.target.value);
-              }
-            }}
-            disabled={loading || !fromDate}
-          />
-        </>
-      )}
-
-      <label style={styles.label}>Interests (comma-separated)</label>
-      <textarea
-        style={styles.textarea}
-        value={interests}
-        onChange={(e) => setInterests(e.target.value)}
-        disabled={loading}
-        placeholder="e.g., Music, Gaming, Hiking, Photography"
-      />
-
-      <label style={styles.label}>Add Skills</label>
-      <div style={styles.skillsDropdownContainer}>
-        <input
-          style={styles.input}
-          type="text"
-          placeholder="Type to search skills..."
-          value={skillInput}
-          onChange={handleSkillInputChange}
-          disabled={loading}
-        />
-        {filteredSkills.length > 0 && (
-          <div style={styles.filteredList}>
-            {filteredSkills.map((s) => (
-              <div key={s} style={styles.skillItem} onClick={() => addSkill(s)}>
-                {s}
-              </div>
-            ))}
+        {role === "Other" && (
+          <div style={styles.field}>
+            <label style={styles.label}>Specify Role</label>
+            <input style={styles.input} value={otherRole} onChange={(e) => setOtherRole(e.target.value)} />
           </div>
         )}
+
+        <div style={styles.field}>
+          <label style={styles.label}>Cluster</label>
+          <select style={styles.select} value={cluster} onChange={(e) => setCluster(e.target.value)}>
+            <option value="">Select cluster</option>
+            {CLUSTER.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={styles.field}>
+          <label style={styles.label}>Location</label>
+          <input style={styles.input} value={location} onChange={(e) => setLocation(e.target.value)} />
+        </div>
       </div>
 
-      {skills.length > 0 && (
-        <div style={styles.skillTagContainer}>
-          {skills.map((s) => (
-            <div key={s} style={styles.skillTag}>
-              {s}{" "}
-              <span
-                style={{ cursor: "pointer", fontWeight: "bold" }}
-                onClick={() => removeSkill(s)}
-              >
-                ×
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <label style={styles.label}>Previous Projects (one per line)</label>
-      <textarea
-        style={styles.textarea}
-        value={projects}
-        onChange={(e) => setProjects(e.target.value)}
-        disabled={loading}
-      />
-
-      <button style={styles.saveButton} onClick={handleSave} disabled={loading}>
-        {loading ? "Saving..." : "Save Profile"}
-      </button>
+      <div style={styles.actions}>
+        <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save Profile"}</button>
+      </div>
     </div>
-  );
+  )
 }

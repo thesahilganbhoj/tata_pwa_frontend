@@ -29,7 +29,9 @@ export default function LoginScreen({ onLogin }) {
 
     try {
       const endpoint = isLogin ? "/api/auth/login" : "/api/auth/signup"
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const fullURL = `${API_URL}${endpoint}`
+      
+      const response = await fetch(fullURL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, ...(isLogin ? {} : { name }) }),
@@ -38,13 +40,14 @@ export default function LoginScreen({ onLogin }) {
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || "Something went wrong")
+        setError(data.error || "Authentication failed")
         setLoading(false)
         return
       }
 
       if (isLogin) {
-        onLogin(data.user)
+        try { sessionStorage.setItem("user", JSON.stringify(data.user || data)); } catch (e) { /* ignore */ }
+        onLogin(data.user || data);
       } else {
         setError("")
         setIsLogin(true)
@@ -54,8 +57,7 @@ export default function LoginScreen({ onLogin }) {
         setName("")
       }
     } catch (err) {
-      setError("Failed to connect to server. Make sure backend is running.")
-      console.error("Auth error:", err)
+      setError(`Failed to connect to server. Make sure backend is running at ${API_URL}`)
     } finally {
       setLoading(false)
     }
@@ -116,7 +118,7 @@ export default function LoginScreen({ onLogin }) {
   return (
     <div style={styles.container}>
       <img src="/Logo/TTL.png" alt="Tata Technologies Logo" style={styles.logo} />
-      <h2 style={styles.heading}>{isLogin ? "Login me" : "Sign Up"}</h2>
+      <h2 style={styles.heading}>{isLogin ? "Login" : "Sign Up"}</h2>
 
       {error && <div style={styles.error}>{error}</div>}
 

@@ -1,36 +1,90 @@
-import { useState } from "react"
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
+// src/App.js
+import React, { useState } from "react"
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom"
 import LoginScreen from "./screens/LoginScreen"
 import HomeScreen from "./screens/HomeScreen"
 import ProfileScreen from "./screens/ProfileScreen"
+import DetailScreen from "./screens/DetailScreen"
 
 export default function App() {
-  const [user, setUser] = useState(null)
+  // initialize from sessionStorage so reload keeps logged-in user
+  const initialUser = (() => {
+    try {
+      const raw = sessionStorage.getItem("user")
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })()
+
+  const [user, setUser] = useState(initialUser)
   const [showProfile, setShowProfile] = useState(false)
 
   const handleLogin = (userData) => {
+    try {
+      sessionStorage.setItem("user", JSON.stringify(userData || {}))
+    } catch (e) {
+      console.warn("sessionStorage write failed", e)
+    }
     setUser(userData)
   }
 
   const handleLogout = () => {
     setUser(null)
     setShowProfile(false)
+    try {
+      sessionStorage.removeItem("user")
+    } catch {}
   }
 
   const handleProfileOpen = () => setShowProfile(true)
   const handleProfileClose = () => setShowProfile(false)
 
+  // Note: DO NOT call useNavigate() here at top-level of App.
+  // Instead we'll define small wrapper components below and those wrappers will call useNavigate()
+  // while being rendered inside <Router> so hooks are valid.
+
+  // Merge-only-profile-keys helper (keeps details untouched)
+  const mergeProfileIntoUser = (profileOnly) => {
+    setUser((prev) => {
+      const prevObj = prev || {}
+      const merged = { ...prevObj, ...(profileOnly || {}) }
+      try {
+        const existing = JSON.parse(sessionStorage.getItem("user") || "{}")
+        sessionStorage.setItem("user", JSON.stringify({ ...existing, ...(profileOnly || {}) }))
+      } catch (e) {
+        console.warn("sessionStorage update failed:", e)
+      }
+      return merged
+    })
+  }
+
+  // Render a Router and Routes. Any component that needs navigation will use a wrapper that calls useNavigate()
   return (
     <Router>
       <Routes>
-        <Route path="/" element={!user ? <LoginScreen onLogin={handleLogin} /> : <Navigate to="/home" />} />
+        <Route
+          path="/"
+          element={!user ? <LoginScreen onLogin={(u) => handleLogin(u)} /> : <Navigate to="/home" />}
+        />
 
+        {/* /home route - keeps previous UX where Profile is toggled inside home */}
         <Route
           path="/home"
           element={
             user ? (
               showProfile ? (
-                <ProfileScreen employee={user} onBack={handleProfileClose} />
+                <ProfileScreen
+                  employee={user}
+                  onBack={() => {
+                    setShowProfile(false)
+                  }}
+                  onSaveProfile={(profileOnly) => {
+                    // update only profile portion
+                    mergeProfileIntoUser(profileOnly)
+                    setShowProfile(false)
+                  }}
+                />
               ) : (
                 <HomeScreen onLogout={handleLogout} onProfile={handleProfileOpen} employee={user} />
               )
@@ -40,8 +94,63 @@ export default function App() {
           }
         />
 
+        {/* Details route wrapper - useNavigate inside wrapper (valid because wrapper rendered inside Router) */}
+        <Route
+          path="/details"
+          element={
+            user ? <DetailsRoute user={user} mergeProfileIntoUser={mergeProfileIntoUser} setUser={setUser} /> : <Navigate to="/" />
+          }
+        />
+
+        {/* Profile route wrapper (route-based profile view) */}
+        <Route
+          path="/profile"
+          element={user ? <ProfileRoute user={user} mergeProfileIntoUser={mergeProfileIntoUser} /> : <Navigate to="/" />}
+        />
+
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
   )
+}
+
+/* ----- Wrapper components (must be defined after default export or inside file) ----- */
+
+/**
+ * DetailsRoute
+ * - Uses useNavigate safely (this component is rendered inside Router)
+ * - onSaveDetails merges entire server details into user (details endpoint expected)
+ */
+function DetailsRoute({ user, mergeProfileIntoUser, setUser }) {
+  const navigate = useNavigate()
+
+  const onSaveDetails = (serverRecord) => {
+    // serverRecord likely contains details fields + maybe profile keys; merge whole record (details are allowed to update)
+    setUser((prev) => ({ ...(prev || {}), ...(serverRecord || {}) }))
+    try {
+      const existing = JSON.parse(sessionStorage.getItem("user") || "{}")
+      sessionStorage.setItem("user", JSON.stringify({ ...existing, ...(serverRecord || {}) }))
+    } catch (e) {
+      console.warn("Failed to update sessionStorage after details save", e)
+    }
+    navigate("/home")
+  }
+
+  return <DetailScreen employee={user} onBack={() => navigate("/home")} onSaveDetails={onSaveDetails} />
+}
+
+/**
+ * ProfileRoute
+ * - Uses useNavigate safely
+ * - onSaveProfile merges *only profile keys* returned from ProfileScreen
+ */
+function ProfileRoute({ user, mergeProfileIntoUser }) {
+  const navigate = useNavigate()
+
+  const onSaveProfile = (profileOnly) => {
+    mergeProfileIntoUser(profileOnly)
+    navigate("/home")
+  }
+
+  return <ProfileScreen employee={user} onBack={() => navigate("/home")} onSaveProfile={onSaveProfile} />
 }
