@@ -1,67 +1,76 @@
-import { useState } from "react"
-import { API_URL } from "../config"
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { API_URL } from "../config";
 
 export default function LoginScreen({ onLogin }) {
-  const [isLogin, setIsLogin] = useState(true)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [name, setName] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const navigate = useNavigate();
+
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError("")
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
+    // Basic validation
     if (!email || !password || (!isLogin && !name)) {
-      setError("Please fill in all required fields.")
-      setLoading(false)
-      return
+      setError("Please fill in all required fields.");
+      setLoading(false);
+      return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const emailRegex = /^[^\s@]+@tatatechnologies\.com$/;
     if (!emailRegex.test(email)) {
-      setError("Please enter a valid email address.")
-      setLoading(false)
-      return
+      setError("Please enter a valid email address.");
+      setLoading(false);
+      return;
     }
 
     try {
-      const endpoint = isLogin ? "/api/auth/login" : "/api/auth/signup"
-      const fullURL = `${API_URL}${endpoint}`
-      
-      const response = await fetch(fullURL, {
+      const endpoint = "/api/auth/login";
+      const response = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, ...(isLogin ? {} : { name }) }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
+      // If fetch succeeded but API returned an error status
       if (!response.ok) {
-        setError(data.error || "Authentication failed")
-        setLoading(false)
-        return
+        setError(data.error || "Something went wrong");
+        setLoading(false);
+        return;
       }
 
-      if (isLogin) {
-        try { sessionStorage.setItem("user", JSON.stringify(data.user || data)); } catch (e) { /* ignore */ }
-        onLogin(data.user || data);
+      // At this point response.ok === true
+      if (data.success) {
+        // Call onLogin with user object (frontend state)
+        if (typeof onLogin === "function") onLogin(data.user);
+
+        // Redirect according to backend instruction
+        if (data.redirectTo) {
+          navigate(data.redirectTo);
+        } else {
+          // Fallback route
+          navigate("/home");
+        }
       } else {
-        setError("")
-        setIsLogin(true)
-        alert("Account created successfully! Please log in.")
-        setEmail("")
-        setPassword("")
-        setName("")
+        // API responded ok but success=false
+        setError(data.error || "Invalid credentials");
       }
     } catch (err) {
-      setError(`Failed to connect to server. Make sure backend is running at ${API_URL}`)
+      setError("Failed to connect to server. Make sure backend is running.");
+      console.error("Auth error:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const styles = {
     container: {
@@ -98,7 +107,7 @@ export default function LoginScreen({ onLogin }) {
       padding: "12px",
       border: "none",
       borderRadius: "6px",
-      cursor: "pointer",
+      cursor: loading ? "not-allowed" : "pointer",
       fontSize: "16px",
       fontWeight: "600",
       opacity: loading ? 0.7 : 1,
@@ -113,12 +122,12 @@ export default function LoginScreen({ onLogin }) {
       borderRadius: "6px",
       fontSize: "14px",
     },
-  }
+  };
 
   return (
     <div style={styles.container}>
       <img src="/Logo/TTL.png" alt="Tata Technologies Logo" style={styles.logo} />
-      <h2 style={styles.heading}>{isLogin ? "Login" : "Sign Up"}</h2>
+      <h2 style={styles.heading}>{isLogin ? "Login" : "Create account"}</h2>
 
       {error && <div style={styles.error}>{error}</div>}
 
@@ -150,15 +159,16 @@ export default function LoginScreen({ onLogin }) {
           disabled={loading}
         />
         <button type="submit" style={styles.button} disabled={loading}>
-          {loading ? "Loading..." : isLogin ? "Login" : "Sign Up"}
+          {loading ? "Loading..." : isLogin ? "Login" : "Create account"}
         </button>
       </form>
 
-      <div style={styles.toggle} onClick={() => !loading && setIsLogin(!isLogin)}>
+      {/* Toggle signup/login if you need it later */}
+      {/* <div style={styles.toggle} onClick={() => !loading && setIsLogin(!isLogin)}>
         {isLogin ? "Create a new account" : "Already have an account? Login"}
-      </div>
+      </div> */}
 
       <p style={styles.footer}>© 2025 Tata Technologies</p>
     </div>
-  )
+  );
 }

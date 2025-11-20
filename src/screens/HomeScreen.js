@@ -1,4 +1,4 @@
-// HomeScreen.js
+// Frontend/src/screens/HomeScreen.js
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import EmployeeCard from "../components/EmployeeCard"
@@ -136,7 +136,7 @@ export default function HomeScreen({ onLogout, onProfile, employee }) {
     const av = (emp.availability || "").toString().toLowerCase()
 
     if (rangeKey === "Any" || rangeKey === "any") return true
-    if (av === "unavailable") return false
+    if (av === "Occupied") return false
 
     if (av === "available") {
       const from = parseDateOnly(emp.from_date)
@@ -198,8 +198,8 @@ export default function HomeScreen({ onLogout, onProfile, employee }) {
       filtered = filtered.filter((emp) => (emp.availability || "") === availabilityFilter)
     }
 
-    // availability range filtering: apply unless availabilityFilter === "Unavailable"
-    const applyRange = availabilityFilter !== "Unavailable"
+    // availability range filtering: apply unless availabilityFilter === "Occupied"
+    const applyRange = availabilityFilter !== "Occupied"
     if (applyRange && availabilityRange && availabilityRange !== "Any") {
       filtered = filtered.filter((emp) => isEmployeeAvailableInRange(emp, availabilityRange))
     }
@@ -237,8 +237,8 @@ export default function HomeScreen({ onLogout, onProfile, employee }) {
     },
     header: {
       display: "flex",
-      justifyContent: "space-between",
       alignItems: "center",
+      justifyContent: "space-between",
       background: "#0072bc",
       color: "white",
       padding: isMobile ? "10px 12px" : "12px 16px",
@@ -246,6 +246,7 @@ export default function HomeScreen({ onLogout, onProfile, employee }) {
       marginBottom: "16px",
       gap: "12px",
     },
+    titleRow: { display: "flex", alignItems: "center", gap: 12, flex: 1 },
     title: { margin: 0, fontSize: isMobile ? 18 : 20, fontWeight: "600" },
     rightArea: { display: "flex", alignItems: "center", gap: "12px" },
     profileButton: {
@@ -381,16 +382,21 @@ export default function HomeScreen({ onLogout, onProfile, employee }) {
   const profileInitials = getInitials(profileName)
   const profileBg = getInitialsColor(profileName)
 
-  // range applicable for all except Unavailable
-  const rangeApplicable = availabilityFilter !== "Unavailable"
+  // range applicable for all except Occupied
+  const rangeApplicable = availabilityFilter !== "Occupied"
 
   return (
     <div style={styles.container}>
-      {/* Hidden uploaded screenshot path (tooling can convert this local path to a URL if needed) */}
-      <img src="/mnt/data/38b74403-917d-463f-ba43-3373b953a996.png" alt="screenshot" style={{ display: "none" }} />
-
       <header style={styles.header}>
-        <h1 style={styles.title}>Employee Dashboard</h1>
+        <div style={styles.titleRow}>
+          {/* LOGO: top-left */}
+          <img
+            src="../../Logo/MainLogo.png"
+            alt="Main Logo"
+            style={{ height: isMobile ? 40 : 50, marginRight: 12, objectFit: "contain", background: "white", borderRadius: 4 }}
+          />
+          <h1 style={styles.title}>Employee Dashboard</h1>
+        </div>
 
         <div style={styles.rightArea}>
           <div style={{ position: "relative" }} ref={profileRef}>
@@ -476,12 +482,12 @@ export default function HomeScreen({ onLogout, onProfile, employee }) {
               onChange={(e) => {
                 const val = e.target.value
                 setAvailabilityFilter(val)
-                if (val === "Unavailable") setAvailabilityRange("Any")
+                if (val === "Occupied") setAvailabilityRange("Any")
               }}
             >
               <option value="All">All Availability</option>
               <option value="Available">Available</option>
-              <option value="Unavailable">Unavailable</option>
+              <option value="Occupied">Occupied</option>
               <option value="Partially Available">Partially Available</option>
             </select>
 
@@ -490,7 +496,7 @@ export default function HomeScreen({ onLogout, onProfile, employee }) {
               value={availabilityRange}
               onChange={(e) => setAvailabilityRange(e.target.value)}
               disabled={!rangeApplicable}
-              title={rangeApplicable ? "Filter by time range" : "Select a status other than 'Unavailable' to enable"}
+              title={rangeApplicable ? "Filter by time range" : "Select a status other than 'Occupied' to enable"}
             >
               <option value="Any">Any time</option>
               <option value="Today">Available today</option>
@@ -518,12 +524,12 @@ export default function HomeScreen({ onLogout, onProfile, employee }) {
                 onChange={(e) => {
                   const val = e.target.value
                   setAvailabilityFilter(val)
-                  if (val === "Unavailable") setAvailabilityRange("Any")
+                  if (val === "Occupied") setAvailabilityRange("Any")
                 }}
               >
                 <option value="All">All Availability</option>
                 <option value="Available">Available</option>
-                <option value="Unavailable">Unavailable</option>
+                <option value="Occupied">Occupied</option>
                 <option value="Partially Available">Partially Available</option>
               </select>
 
@@ -532,7 +538,7 @@ export default function HomeScreen({ onLogout, onProfile, employee }) {
                 value={availabilityRange}
                 onChange={(e) => setAvailabilityRange(e.target.value)}
                 disabled={!rangeApplicable}
-                title={rangeApplicable ? "Filter by time range" : "Select a status other than 'Unavailable' to enable"}
+                title={rangeApplicable ? "Filter by time range" : "Select a status other than 'Occupied' to enable"}
               >
                 <option value="Any">Any time</option>
                 <option value="Today">Available today</option>

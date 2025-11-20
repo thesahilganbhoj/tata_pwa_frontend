@@ -5,7 +5,7 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
 
   const {
     name = "Unknown",
-    availability = "Unavailable",
+    availability = "Occupied",
     current_skills,
     interests,
     previous_projects,
@@ -15,6 +15,7 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
     hours_available,
     from_date,
     to_date,
+    updated_at, // expected timestamp string or Date or number
   } = employee || {}
 
   // robust parsing for SheetDB
@@ -65,6 +66,67 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
     return dateStr
   }
 
+  // ---------- New: parse dates, humanize update text, and color ----------
+  const parseToDate = (d) => {
+    if (!d) return null
+    if (d instanceof Date) return d
+    if (typeof d === "number") return new Date(d)
+    if (typeof d !== "string") return null
+    try {
+      let s = d.trim()
+      // handle "YYYY-MM-DD HH:MM:SS" by replacing first space with 'T'
+      if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/.test(s)) {
+        s = s.replace(/\s+/, "T")
+      }
+      const dt = new Date(s)
+      if (isNaN(dt.getTime())) return null
+      return dt
+    } catch {
+      return null
+    }
+  }
+
+  const getUpdatedText = (updatedAt) => {
+    const dt = parseToDate(updatedAt)
+    if (!dt) return ""
+    const now = new Date()
+    const diffMs = now.getTime() - dt.getTime()
+    if (diffMs < 0) return "" // ignore future dates
+
+    const msPerMinute = 1000 * 60
+    const msPerHour = msPerMinute * 60
+    const msPerDay = msPerHour * 24
+
+    const days = Math.floor(diffMs / msPerDay)
+    if (days >= 1) {
+      return `Updated ${days} day${days === 1 ? "" : "s"} ago`
+    }
+    const hours = Math.floor(diffMs / msPerHour)
+    if (hours >= 1) {
+      return `Updated ${hours} hr${hours === 1 ? "" : "s"} ago`
+    }
+    const minutes = Math.floor(diffMs / msPerMinute)
+    if (minutes >= 1) {
+      return `Updated ${minutes} min${minutes === 1 ? "" : "s"} ago`
+    }
+    return "Updated just now"
+  }
+
+  const getUpdateColor = (updatedAt) => {
+    const dt = parseToDate(updatedAt)
+    if (!dt) return "#9ca3af" // neutral gray
+
+    const now = new Date()
+    const diffDays = Math.floor((now.getTime() - dt.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (diffDays <= 7) return "#2e7d32" // green
+    if (diffDays <= 15) return "#f57c00" // orange
+    return "#d32f2f" // red
+  }
+
+  const updatedText = getUpdatedText(updated_at)
+  // ---------- end new code ----------
+
   const styles = {
     card: {
       background: "#fff",
@@ -81,25 +143,25 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
       boxShadow: "0 10px 24px rgba(0,0,0,0.09)",
     },
     header: {
-      padding: "20px",
+      padding: "16px", // slightly smaller padding for mobile friendliness
       background: "#fbfbfd",
       borderBottom: expanded ? "1px solid #f0f0f5" : "none",
     },
     topRow: {
       display: "flex",
-      gap: "16px",
+      gap: "12px",
       alignItems: "center",
     },
     initialsCircle: {
-      width: "64px",
-      height: "64px",
+      width: "56px",
+      height: "56px",
       borderRadius: "50%",
       background: getInitialsColor(name),
       color: "white",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      fontSize: "24px",
+      fontSize: "20px",
       fontWeight: "700",
       flexShrink: 0,
     },
@@ -110,8 +172,8 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
     },
     name: {
       color: "#072a53",
-      margin: "0",
-      fontSize: "18px",
+      margin: 0,
+      fontSize: "16px",
       fontWeight: 700,
       letterSpacing: "0.2px",
       whiteSpace: "nowrap",
@@ -125,9 +187,21 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
       whiteSpace: "nowrap",
       overflow: "hidden",
       textOverflow: "ellipsis",
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+    },
+    updatedText: {
+      marginTop: 6,
+      fontSize: 12,
+      fontWeight: 600,
+      lineHeight: "14px",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
     },
     infoList: {
-      marginTop: "14px",
+      marginTop: "12px",
       display: "flex",
       flexDirection: "column",
       gap: "8px",
@@ -140,15 +214,15 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
       color: "#374151",
     },
     iconWrap: {
-      width: "20px",
-      height: "20px",
+      width: "18px",
+      height: "18px",
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
     },
     body: {
-      padding: "18px 20px",
+      padding: "14px 16px",
       maxHeight: "520px",
       overflowY: "auto",
       background: "#ffffff",
@@ -175,7 +249,7 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
       fontSize: "12px",
     },
     footerHint: {
-      padding: "12px 20px",
+      padding: "10px 16px",
       textAlign: "center",
       borderTop: "1px solid #f0f0f5",
       background: "#fbfbfd",
@@ -239,8 +313,8 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
   )
 
   const statusKey = (availability || "").toString().toLowerCase()
-  const statusColor = statusKey === "available" ? "#2e7d32" : statusKey === "unavailable" ? "#d32f2f" : "#f57c00"
-  const isPartial = statusKey === "partially available"
+  const statusColor = statusKey === "available" ? "#2e7d32" : statusKey === "occupied" ? "#d32f2f" : "#f57c00"
+  const isPartial = statusKey === "partially available" || statusKey === "partially" || statusKey === "partial"
 
   return (
     <div
@@ -284,6 +358,19 @@ export default function EmployeeCard({ employee = {}, getInitials }) {
                 <span style={{ ...styles.statusDot, background: statusColor }} />
                 <strong style={{ fontSize: "13px", color: "#374151", fontWeight: 600 }}>{availability}</strong>
               </div>
+
+              {/* Updated text - below availability, only in collapsed view */}
+              {!expanded && updatedText && (
+                <div
+                  style={{
+                    ...styles.updatedText,
+                    color: getUpdateColor(updated_at),
+                  }}
+                  aria-live="polite"
+                >
+                  {updatedText}
+                </div>
+              )}
             </div>
           </div>
         </div>
