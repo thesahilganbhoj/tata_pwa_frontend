@@ -780,11 +780,11 @@ export default function DetailScreen({ employee = null, onBack, onSaveDetails, o
 
           {/* Interests (now tag style like skills) */}
           <div style={styles.field}>
-            <label style={styles.label}>Interests</label>
+            <label style={styles.label}>Technical Interests</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 id="interestInput"
-                placeholder="Add interest & press Enter"
+                placeholder="Add technical interests/inclincations & press Enter"
                 style={styles.input}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
